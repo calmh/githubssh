@@ -16,12 +16,13 @@ import (
 
 var cli struct {
 	GithubUser string `arg:"" desc:"Github user" default:"calmh"`
+	KeysPath   string `arg:"" type:"path" desc:"Path to authorized_keys" default:"~/.ssh/authorized_keys"`
 }
 
 func main() {
 	kong.Parse(&cli)
 
-	localKeys, err := localKeys()
+	localKeys, err := localKeys(cli.KeysPath)
 	if err != nil {
 		log.Fatalln("Reading existing keys:", err)
 	}
@@ -35,13 +36,12 @@ func main() {
 	ks.Add(localKeys...)
 	ks.Add(remoteKeys...)
 
-	if err := saveKeys(ks.Keys()); err != nil {
+	if err := saveKeys(cli.KeysPath, ks.Keys()); err != nil {
 		log.Fatalln("Saving keys:", err)
 	}
 }
 
-func localKeys() ([]string, error) {
-	path := filepath.Join(os.Getenv("HOME"), ".ssh", "authorized_keys")
+func localKeys(path string) ([]string, error) {
 	bs, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -68,9 +68,9 @@ func githubKeys(user string) ([]string, error) {
 	return strings.Split(string(bs), "\n"), nil
 }
 
-func saveKeys(keys []string) error {
+func saveKeys(path string, keys []string) error {
+	_ = os.MkdirAll(filepath.Dir(path), 0700)
 	bs := []byte(strings.Join(keys, "\n") + "\n")
-	path := filepath.Join(os.Getenv("HOME"), ".ssh", "authorized_keys")
 	if err := os.WriteFile(path+".tmp", bs, 0600); err != nil {
 		return err
 	}
